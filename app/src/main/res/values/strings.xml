@@ -1,3 +1,8 @@
 <resources>
     <string name="app_name">HashResearch</string>
+    <string name="open_file">Открыть файл</string>
+    <string name="calculate_hash_sum">Рассчитать хеш-сумму</string>
+    <string name="check_integrity">Проверить целостность</string>
+    <string name="algorithms">Алгоритмы</string>
+    <string name="export">Экспортировать</string>
 </resources>
