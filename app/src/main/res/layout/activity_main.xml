@@ -44,15 +44,18 @@
         android:layout_width="220dp"
         android:layout_height="wrap_content"
         android:layout_marginTop="50dp"
+        android:enabled="false"
         android:text="@string/open_file"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/textFileName" />
+
     <Button
         android:id="@+id/calculateHashSumButton"
         android:layout_width="220dp"
         android:layout_height="wrap_content"
         android:layout_marginTop="20dp"
+        android:enabled="false"
         android:text="@string/calculate_hash_sum"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -62,6 +65,7 @@
         android:layout_width="220dp"
         android:layout_height="wrap_content"
         android:layout_marginTop="20dp"
+        android:enabled="false"
         android:text="@string/check_integrity"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
