@@ -1,26 +1,15 @@
 package com.example.hashresearch;
 
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
-import androidx.appcompat.app.AlertDialog;
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.appcompat.widget.Toolbar;
-import androidx.core.content.FileProvider;
-import androidx.documentfile.provider.DocumentFile;
-
 import android.content.ContentValues;
 import android.content.Context;
-import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
-import android.os.Environment;
-import android.provider.DocumentsContract;
-import android.provider.MediaStore;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -31,12 +20,16 @@ import android.widget.EditText;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
+import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.FileProvider;
+import androidx.documentfile.provider.DocumentFile;
+
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -46,6 +39,10 @@ import java.security.Security;
 import java.util.Arrays;
 
 public class MainActivity extends AppCompatActivity implements View.OnClickListener {
+    private static final String APP_PREFERENCES = "settings";
+    SharedPreferences mSettings;
+
+    private String ALGORITHM;
 
     private Button openFileButton;
     private Button calculateHashSumButton;
@@ -58,8 +55,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     private static final int RESULT_DIRECTORY_TO_EXPORT_DB = 3;
     private static final int RESULT_OPEN_HASH = 4;
 
-    private static final String ALGORITHM = "GOST3411-2012-256";
-
     private CurrentFile currentFile;
     private byte[] currentHash;
 
@@ -68,6 +63,9 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        mSettings = getSharedPreferences(APP_PREFERENCES, Context.MODE_PRIVATE);
+        ALGORITHM = mSettings.getString("ALGORITHM", "GOST3411");
 
         Security.insertProviderAt(new org.spongycastle.jce.provider.BouncyCastleProvider(), 1);
 
@@ -84,6 +82,13 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         fileNameTextView = findViewById(R.id.textFileName);
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+        mSettings = getSharedPreferences(APP_PREFERENCES, Context.MODE_PRIVATE);
+        ALGORITHM = mSettings.getString("ALGORITHM", "GOST3411");
+    }
+
     // Добавить меню
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -94,12 +99,16 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     // Обработка меню
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        if (item.getItemId() == R.id.item_export) {
+        int itemId = item.getItemId();
+        if (itemId == R.id.item_export) {
             Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
             intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
             startActivityForResult(intent, RESULT_DIRECTORY_TO_EXPORT_DB);
-        };
+        } else if (itemId == R.id.item_settings) {
+            Intent intent = new Intent(MainActivity.this, SettingsActivity.class);
+            startActivity(intent);
+        }
         return true;
     }
 
@@ -175,7 +184,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                         outputStream.close();
                     } catch (IOException e) {
                         e.printStackTrace();
-                        Log.d("File_tree", e.getMessage());
                     }
                     break;
 

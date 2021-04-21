@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".SettingsActivity">
+
+    <RadioGroup
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <RadioButton
+            android:id="@+id/radioButtonGost3411"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/gost3411" />
+
+        <RadioButton
+            android:id="@+id/radioButtonGost3411_2012_256"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/gost3411_2012_256" />
+
+        <RadioButton
+            android:id="@+id/radioButtonGost3411_2012_512"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/gost3411_2012_512" />
+
+    </RadioGroup>
+
+
+</LinearLayout>
