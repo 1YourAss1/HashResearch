@@ -308,17 +308,18 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             try {
                 MessageDigest messageDigest = MessageDigest.getInstance(ALGORITHM, Security.getProvider("SC"));
                 InputStream inputStream = getContentResolver().openInputStream(currentFile.getUri());
-                int bufferSize = 32;
+                int bufferSize = (ALGORITHM.equals("GOST3411")) ? 32 : 64;
                 byte[] buffer = new byte[bufferSize];
-                int counter = 0;
-                int max = (int) currentFile.getFileSize();
+                long counter = 0;
+                long max = currentFile.getFileSize();
 
                 while ((inputStream.read(buffer)) != -1) {
                     if (isCancelled()) return null;
 
                     messageDigest.update(buffer);
                     counter += bufferSize;
-                    publishProgress((counter * 100) / max);
+                    float percent = ((counter * 100) / (float) max);
+                    publishProgress((int) percent);
                 }
                 return messageDigest.digest();
             } catch (Exception e) {
@@ -402,17 +403,18 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             try {
                 MessageDigest messageDigest = MessageDigest.getInstance(ALGORITHM, Security.getProvider("SC"));
                 InputStream inputStream = getContentResolver().openInputStream(currentFile.getUri());
-                int bufferSize = 32;
+                int bufferSize = (ALGORITHM.equals("GOST3411")) ? 32 : 64;
                 byte[] buffer = new byte[bufferSize];
-                int counter = 0;
-                int max = (int) currentFile.getFileSize();
+                long counter = 0;
+                long max = currentFile.getFileSize();
 
                 while ((inputStream.read(buffer)) != -1) {
                     if (isCancelled()) return null;
 
                     messageDigest.update(buffer);
                     counter += bufferSize;
-                    publishProgress((counter * 100) / max);
+                    float percent = ((counter * 100) / (float) max);
+                    publishProgress((int) percent);
                 }
                 return messageDigest.digest();
             } catch (Exception e) {
