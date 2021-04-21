@@ -275,6 +275,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             builder.setTitle("Вычисление...");
             builder.setView(view);
             builder.setCancelable(false);
+            builder.setNegativeButton("Отмена", (dialog, which) -> cancel(true));
             loadDialog = builder.create();
             loadDialog.show();
 
@@ -295,6 +296,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 byte[] buffer = new byte[bufferSize];
                 int counter = 0;
                 while ((inputStream.read(buffer)) != -1) {
+                    if (isCancelled()) return null;
+
                     messageDigest.update(buffer);
                     counter += bufferSize;
                     publishProgress(counter);
@@ -304,6 +307,12 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 e.printStackTrace();
                 return null;
             }
+        }
+
+        @Override
+        protected void onCancelled() {
+            super.onCancelled();
+            loadDialog.dismiss();
         }
 
         @Override
@@ -361,6 +370,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             builder.setTitle("Вычисление...");
             builder.setView(view);
             builder.setCancelable(false);
+            builder.setNegativeButton("Отмена", (dialog, which) -> cancel(true));
             loadDialog = builder.create();
             loadDialog.show();
         }
@@ -379,6 +389,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 byte[] buffer = new byte[bufferSize];
                 int counter = 0;
                 while ((inputStream.read(buffer)) != -1) {
+                    if (isCancelled()) return null;
+
                     messageDigest.update(buffer);
                     counter += bufferSize;
                     publishProgress(counter);
@@ -388,6 +400,12 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 e.printStackTrace();
                 return null;
             }
+        }
+
+        @Override
+        protected void onCancelled() {
+            super.onCancelled();
+            loadDialog.dismiss();
         }
 
         @Override

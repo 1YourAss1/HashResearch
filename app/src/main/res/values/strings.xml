@@ -9,4 +9,5 @@
     <string name="gost3411_2012_256">ГОСТ Р 34.11–2012 (256)</string>
     <string name="gost3411_2012_512">ГОСТ Р 34.11–2012 (512)</string>
     <string name="settings">Настройки</string>
+    <string name="cancel">Отмена</string>
 </resources>
