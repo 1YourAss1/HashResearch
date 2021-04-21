@@ -22,6 +22,11 @@ public class CurrentFile {
         return cursor.getString(cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME));
     }
 
+    public String getFileType() {
+        String[] s = cursor.getString(cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)).split("\\.");
+        return s[s.length - 1];
+    }
+
     public long getFileSize() {
         return cursor.getLong(cursor.getColumnIndex(OpenableColumns.SIZE));
     }

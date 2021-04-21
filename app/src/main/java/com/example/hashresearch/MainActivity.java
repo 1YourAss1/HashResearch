@@ -1,5 +1,6 @@
 package com.example.hashresearch;
 
+import android.content.ClipData;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
@@ -36,7 +37,9 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.security.MessageDigest;
 import java.security.Security;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Locale;
 
 public class MainActivity extends AppCompatActivity implements View.OnClickListener {
     private static final String APP_PREFERENCES = "settings";
@@ -55,6 +58,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     private static final int RESULT_DIRECTORY_TO_EXPORT_DB = 3;
     private static final int RESULT_OPEN_HASH = 4;
 
+    private ArrayList<CurrentFile> currentFiles;
     private CurrentFile currentFile;
     private byte[] currentHash;
 
@@ -120,6 +124,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         if (id == R.id.chooseFileButton) {
             Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
             intent.setType("*/*");
+//            intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
             startActivityForResult(intent, RESULT_OPEN_FILE);
         // Открытие файла
         } else if (id == R.id.openFileButton) {
@@ -164,6 +169,19 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             switch (requestCode) {
                 // Открытия файла
                 case RESULT_OPEN_FILE:
+//                    currentFiles = new ArrayList<>();
+//                    if (data.getData() == null){
+//                        ClipData clipData = data.getClipData();
+//                        for (int i = 0; i < clipData.getItemCount(); i++){
+//                            ClipData.Item item = clipData.getItemAt(i);
+//                            currentFiles.add(new CurrentFile(item.getUri(), getApplicationContext()));
+//                            fileNameTextView.setText(String.format(Locale.getDefault(), "Выбранно файлов: %d", currentFiles.size()));
+//                        }
+//                    } else {
+//                        currentFiles.add(new CurrentFile(data.getData(), getApplicationContext()));
+//                        fileNameTextView.setText(String.format("%s (%s)", currentFiles.get(0).getFileName(), currentFiles.get(0).getFileSizeFormatted() ));
+//                    }
+
                     currentFile = new CurrentFile(data.getData(), getApplicationContext());
                     fileNameTextView.setText(String.format("%s (%s)", currentFile.getFileName(), currentFile.getFileSizeFormatted() ));
 //            fileImageView.setImageBitmap(currentFile.getImageBitmap());
@@ -266,12 +284,10 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         LayoutInflater inflater = getLayoutInflater();
         View view = inflater.inflate(R.layout.layout_loading_dialog, null);
         ProgressBar progressBar = view.findViewById(R.id.progressBarLoading);
-
         long time;
 
         @Override
         protected void onPreExecute() {
-            progressBar.setMax((int) currentFile.getFileSize());
             builder.setTitle("Вычисление...");
             builder.setView(view);
             builder.setCancelable(false);
@@ -295,12 +311,14 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 int bufferSize = 32;
                 byte[] buffer = new byte[bufferSize];
                 int counter = 0;
+                int max = (int) currentFile.getFileSize();
+
                 while ((inputStream.read(buffer)) != -1) {
                     if (isCancelled()) return null;
 
                     messageDigest.update(buffer);
                     counter += bufferSize;
-                    publishProgress(counter);
+                    publishProgress((counter * 100) / max);
                 }
                 return messageDigest.digest();
             } catch (Exception e) {
@@ -366,7 +384,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
         @Override
         protected void onPreExecute() {
-            progressBar.setMax((int) currentFile.getFileSize());
             builder.setTitle("Вычисление...");
             builder.setView(view);
             builder.setCancelable(false);
@@ -388,12 +405,14 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 int bufferSize = 32;
                 byte[] buffer = new byte[bufferSize];
                 int counter = 0;
+                int max = (int) currentFile.getFileSize();
+
                 while ((inputStream.read(buffer)) != -1) {
                     if (isCancelled()) return null;
 
                     messageDigest.update(buffer);
                     counter += bufferSize;
-                    publishProgress(counter);
+                    publishProgress((counter * 100) / max);
                 }
                 return messageDigest.digest();
             } catch (Exception e) {
@@ -436,6 +455,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             db.execSQL("create table time ("
                     + "_id integer primary key autoincrement,"
                     + "file_name text,"
+                    + "file_type text,"
                     + "size_mb float,"
                     + "algorithm text,"
                     + "time_sec float"
@@ -452,8 +472,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             ContentValues cv = new ContentValues();
             Cursor cursor = db.query("time",
                     null,
-                    "file_name = ? AND size_mb = ? AND algorithm = ?",
-                    new String[] {file.getFileName(), Double.toString((double) file.getFileSize() / 1000000), algorithm},
+                    "file_name = ? AND file_type = ? AND size_mb = ? AND algorithm = ?",
+                    new String[] {file.getFileName(), file.getFileType(), Double.toString((double) file.getFileSize() / 1000000), algorithm},
                     null,
                     null,
                     null,
@@ -466,6 +486,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 cursor.close();
             } else {
                 cv.put("file_name", file.getFileName());
+                cv.put("file_type", file.getFileType());
                 cv.put("size_mb", file.getFileSize() / 1000000.0);
                 cv.put("algorithm", algorithm);
                 cv.put("time_sec", time / 1000.0);
