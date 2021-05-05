@@ -1,6 +1,5 @@
 package com.example.hashresearch;
 
-import android.content.ClipData;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
@@ -36,14 +35,32 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.Provider;
+import java.security.SecureRandom;
 import java.security.Security;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Locale;
+import java.util.Enumeration;
+
+import javax.crypto.KeyGenerator;
+import javax.crypto.Mac;
+import javax.crypto.SecretKey;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.PBEKeySpec;
+import javax.crypto.spec.SecretKeySpec;
 
 public class MainActivity extends AppCompatActivity implements View.OnClickListener {
     private static final String APP_PREFERENCES = "settings";
     SharedPreferences mSettings;
+
+    private static final String GOST3411 = "GOST3411";
+    private static final String GOST3411_2012_256 = "GOST3411-2012-256";
+    private static final String GOST3411_2012_512 = "GOST3411-2012-512";
+    private static final String GOST28147 = "GOST28147";
+    private static final String HMAC_GOST3411 = "HMAC-GOST3411";
+    private static final String HMAC_GOST3411_2012_256 = "HMAC-GOST3411-2012-256";
+    private static final String HMAC_GOST3411_2012_512 = "HMAC-GOST3411-2012-512";
 
     private String ALGORITHM;
 
@@ -72,6 +89,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         ALGORITHM = mSettings.getString("ALGORITHM", "GOST3411");
 
         Security.insertProviderAt(new org.spongycastle.jce.provider.BouncyCastleProvider(), 1);
+
+
 
         FloatingActionButton floatingActionButton = findViewById(R.id.chooseFileButton);
         openFileButton = findViewById(R.id.openFileButton);
@@ -112,6 +131,13 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         } else if (itemId == R.id.item_settings) {
             Intent intent = new Intent(MainActivity.this, SettingsActivity.class);
             startActivity(intent);
+        } else if (itemId == R.id.item_salt) {
+            SecureRandom random = new SecureRandom();
+            byte[] salt = new byte[256];
+            random.nextBytes(salt);
+
+            SharedPreferences.Editor editor = mSettings.edit();
+            editor.putString("SALT", bytes2hex(salt)).apply();
         }
         return true;
     }
@@ -133,9 +159,26 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             startActivity(intent);
-        // Рассчет хеша
+        // Рассчет имитовставки
         } else if (id == R.id.calculateHashSumButton) {
-            new CalculateHashTask().execute();
+            if (ALGORITHM.equals(GOST3411) || ALGORITHM.equals(GOST3411_2012_256) || ALGORITHM.equals(GOST3411_2012_512)) {
+                new CalculateHashTask().execute();
+            } else {
+                AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+                AlertDialog enterPasswordDialog;
+                LayoutInflater inflater = getLayoutInflater();
+                View view = inflater.inflate(R.layout.layout_enter_password, null);
+                final EditText editTextPassword = view.findViewById(R.id.editTextPassword);
+                builder.setTitle("Введите пароль");
+                builder.setView(view);
+                builder.setPositiveButton("OK", (dialog, which) -> {
+                    if (!editTextPassword.getText().toString().equals("")) new CalculateMacTask().execute(editTextPassword.getText().toString());
+                });
+                builder.setNegativeButton("Отмена", (dialog, which) -> {});
+                enterPasswordDialog = builder.create();
+                enterPasswordDialog.show();
+
+            }
         // Проверка целостности
         } else if (id == R.id.checkIntegrityButton) {
             // Выбор хеша
@@ -149,7 +192,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             builder.setPositiveButton("OK", (dialog, which) -> {
                 currentHash = hex2bytes(editTextHash.getText().toString());
                 // Рассчет хеша для сравнения с выбранным
-                new CheckIntegrityTask().execute();
+                new CheckHashTask().execute();
             });
             builder.setNeutralButton("Из файла", (dialog, which) -> {
                 Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
@@ -236,7 +279,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                         }
                         currentHash = bufferHash.toByteArray();
                         // Рассчет хеша для сравнения с выбранным
-                        new CheckIntegrityTask().execute();
+                        new CheckHashTask().execute();
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
@@ -277,7 +320,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         return data;
     }
 
-    // Рассчет хеша в отдельном потоке
+
+    // Рассчет MDC в отдельном потоке
     class CalculateHashTask extends AsyncTask<Void, Integer, byte[]> {
         AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
         AlertDialog loadDialog;
@@ -342,7 +386,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
             loadDialog.dismiss();
             builder = new AlertDialog.Builder(MainActivity.this);
-            builder.setTitle("Хеш-сумма успешно посчитана");
+            builder.setTitle("Имитовставка успешно посчитана");
             builder.setMessage(bytes2hex(hash));
             builder.setPositiveButton("Сохранить", (dialog, which) -> {
                 currentHash = hash;
@@ -374,8 +418,194 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         }
     }
 
-    // Проверка целостности в отдельном потоке
-    class CheckIntegrityTask extends AsyncTask<Void, Integer, byte[]> {
+    // Проверка MDC в отдельном потоке
+    class CheckHashTask extends AsyncTask<Void, Integer, byte[]> {
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+        AlertDialog loadDialog;
+        LayoutInflater inflater = getLayoutInflater();
+        View view = inflater.inflate(R.layout.layout_loading_dialog, null);
+        ProgressBar progressBar = view.findViewById(R.id.progressBarLoading);
+
+        @Override
+        protected void onPreExecute() {
+            builder.setTitle("Вычисление...");
+            builder.setView(view);
+            builder.setCancelable(false);
+            builder.setNegativeButton("Отмена", (dialog, which) -> cancel(true));
+            loadDialog = builder.create();
+            loadDialog.show();
+        }
+
+        @Override
+        protected void onProgressUpdate(Integer... values) {
+            progressBar.setProgress(values[0]);
+        }
+
+        @Override
+        protected byte[] doInBackground(Void... voids) {
+            try {
+                MessageDigest messageDigest = MessageDigest.getInstance(ALGORITHM, Security.getProvider("SC"));
+                InputStream inputStream = getContentResolver().openInputStream(currentFile.getUri());
+                int bufferSize = (ALGORITHM.equals(GOST3411)) ? 32 : 64;
+                byte[] buffer = new byte[bufferSize];
+                long counter = 0;
+                long max = currentFile.getFileSize();
+
+                while ((inputStream.read(buffer)) != -1) {
+                    if (isCancelled()) return null;
+
+                    messageDigest.update(buffer);
+                    counter += bufferSize;
+                    float percent = ((counter * 100) / (float) max);
+                    publishProgress((int) percent);
+                }
+                return messageDigest.digest();
+            } catch (Exception e) {
+                e.printStackTrace();
+                return null;
+            }
+        }
+
+        @Override
+        protected void onCancelled() {
+            super.onCancelled();
+            loadDialog.dismiss();
+        }
+
+        @Override
+        protected void onPostExecute(byte[] hash) {
+            loadDialog.dismiss();
+            builder = new AlertDialog.Builder(MainActivity.this);
+            builder.setTitle("Результат проверки");
+            if (Arrays.equals(currentHash, hash)) {
+                builder.setMessage("Целостность не нарушена");
+            } else {
+                builder.setMessage("Целостность нарушена");
+            }
+            builder.setPositiveButton("OK", (dialog, which) -> {});
+            builder.show();
+        }
+
+    }
+
+    // Рассчет MAC в отдельном потоке
+    class CalculateMacTask extends AsyncTask<String, Integer, byte[]> {
+        AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+        AlertDialog loadDialog;
+        LayoutInflater inflater = getLayoutInflater();
+        View view = inflater.inflate(R.layout.layout_loading_dialog, null);
+        ProgressBar progressBar = view.findViewById(R.id.progressBarLoading);
+        long time;
+
+        @Override
+        protected void onPreExecute() {
+            builder.setTitle("Вычисление...");
+            builder.setView(view);
+            builder.setCancelable(false);
+            builder.setNegativeButton("Отмена", (dialog, which) -> cancel(true));
+            loadDialog = builder.create();
+            loadDialog.show();
+
+            time = System.currentTimeMillis();
+        }
+
+        @Override
+        protected void onProgressUpdate(Integer... values) {
+            progressBar.setProgress(values[0]);
+        }
+
+        @Override
+        protected byte[] doInBackground(String... strings) {
+            String password = strings[0];
+            try {
+                char[] passwordChar = password.toCharArray();
+                byte[] salt = hex2bytes(mSettings.getString("SALT", ""));
+                PBEKeySpec pbeKeySpec = new PBEKeySpec(passwordChar, salt, 100, 512);
+                SecretKeyFactory secretKeyFactory = SecretKeyFactory.getInstance("PBKDF2WithHmacGOST3411");
+                SecretKey key = secretKeyFactory.generateSecret(pbeKeySpec);
+
+                Mac mac = Mac.getInstance(ALGORITHM, Security.getProvider("SC"));
+                mac.init(key);
+
+                InputStream inputStream = getContentResolver().openInputStream(currentFile.getUri());
+                int bufferSize;
+                if (ALGORITHM.equals(GOST28147)) {
+                    bufferSize = 8;
+                } else if (ALGORITHM.equals(HMAC_GOST3411)) {
+                    bufferSize = 32;
+                } else {
+                    bufferSize = 64;
+                }
+                byte[] buffer = new byte[bufferSize];
+
+                long counter = 0;
+                long max = currentFile.getFileSize();
+
+                while ((inputStream.read(buffer)) != -1) {
+                    if (isCancelled()) return null;
+
+                    mac.update(buffer);
+                    counter += bufferSize;
+                    float percent = ((counter * 100) / (float) max);
+                    publishProgress((int) percent);
+                }
+                return mac.doFinal();
+
+            } catch (Exception e) {
+                e.printStackTrace();
+                return null;
+            }
+        }
+
+        @Override
+        protected void onCancelled() {
+            super.onCancelled();
+            loadDialog.dismiss();
+        }
+
+        @Override
+        protected void onPostExecute(byte[] mac) {
+            time = System.currentTimeMillis() - time;
+
+            new DBHelper(getApplicationContext()).addDataToBD(currentFile, ALGORITHM, (int) time);
+
+            loadDialog.dismiss();
+            builder = new AlertDialog.Builder(MainActivity.this);
+            builder.setTitle("Имитовставка успешно посчитана");
+            builder.setMessage(bytes2hex(mac));
+            builder.setPositiveButton("Сохранить", (dialog, which) -> {
+                currentHash = mac;
+                Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+                startActivityForResult(intent, RESULT_DIRECTORY_TO_SAVE_HASH);
+            });
+            builder.setNeutralButton("Поделиться", (dialog, which) -> {
+                try {
+                    File tmpFile = new File(getCacheDir(), currentFile.getFileName() + ".hash");
+                    FileOutputStream fileOutputStream = new FileOutputStream(tmpFile);
+                    fileOutputStream.write(mac);
+                    fileOutputStream.close();
+                    Intent intent = new Intent(Intent.ACTION_SEND);
+                    intent.setFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    Uri tmpFileUri = FileProvider.getUriForFile(MainActivity.this, BuildConfig.APPLICATION_ID, tmpFile);
+                    intent.putExtra(Intent.EXTRA_TEXT, bytes2hex(mac));
+                    intent.putExtra(Intent.EXTRA_STREAM, tmpFileUri);
+                    intent.setType("*/*");
+                    startActivity(Intent.createChooser(intent, "Поделиться хеш-суммой"));
+                    tmpFile.deleteOnExit();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            });
+            builder.setNegativeButton("Отмена", (dialog, which) -> {});
+            builder.show();
+        }
+    }
+
+    // Проверка MAC в отдельном потоке (не реализован)
+    class CheckMACTask extends AsyncTask<Void, Integer, byte[]> {
 
         AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
         AlertDialog loadDialog;

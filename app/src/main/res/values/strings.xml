@@ -1,13 +1,20 @@
 <resources>
     <string name="app_name">HashResearch</string>
     <string name="open_file">Открыть файл</string>
-    <string name="calculate_hash_sum">Рассчитать хеш-сумму</string>
+    <string name="calculate_hash_sum">Рассчитать имитовставку</string>
     <string name="check_integrity">Проверить целостность</string>
     <string name="algorithms">Алгоритмы</string>
     <string name="export">Экспортировать</string>
     <string name="gost3411">ГОСТ Р 34.11–94</string>
-    <string name="gost3411_2012_256">ГОСТ Р 34.11–2012 (256)</string>
-    <string name="gost3411_2012_512">ГОСТ Р 34.11–2012 (512)</string>
+    <string name="gost3411_2012_256">ГОСТ Р 34.11–2012(256)</string>
+    <string name="gost3411_2012_512">ГОСТ Р 34.11–2012(512)</string>
     <string name="settings">Настройки</string>
     <string name="cancel">Отмена</string>
+    <string name="gost28147_cmac">ГОСТ 28147–89 (CMAC)</string>
+    <string name="gost3411_hmac">ГОСТ Р 34.11 (HMAC)</string>
+    <string name="gost3411_2012_256_hmac">ГОСТ Р 34.11–2012(256) (HMAC)</string>
+    <string name="gost3411_2012_512_hmac">ГОСТ Р 31.11–2012(512) (HMAC)</string>
+    <string name="mdc">MDC</string>
+    <string name="mac">MAC</string>
+    <string name="generate_salt">Сгенерировать соль</string>
 </resources>

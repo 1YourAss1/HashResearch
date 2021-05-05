@@ -10,6 +10,11 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
 
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/mdc"/>
+
         <RadioButton
             android:id="@+id/radioButtonGost3411"
             android:layout_width="match_parent"
@@ -28,7 +33,34 @@
             android:layout_height="wrap_content"
             android:text="@string/gost3411_2012_512" />
 
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/mac"/>
+
+        <RadioButton
+            android:id="@+id/radioButtonMacGost28147_89"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/gost28147_cmac" />
+
+        <RadioButton
+            android:id="@+id/radioButtonMacGost3411"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/gost3411_hmac" />
+
+        <RadioButton
+            android:id="@+id/radioButtonMacGost3411_2012_256"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/gost3411_2012_256_hmac" />
+
+        <RadioButton
+            android:id="@+id/radioButtonMacGost3411_2012_512"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/gost3411_2012_512_hmac" />
+
     </RadioGroup>
-
-
 </LinearLayout>

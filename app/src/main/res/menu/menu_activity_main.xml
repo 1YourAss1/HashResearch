@@ -9,4 +9,8 @@
         android:id="@+id/item_export"
         android:title="@string/export" />
 
+    <item
+        android:id="@+id/item_salt"
+        android:title="@string/generate_salt" />
+
 </menu>
