@@ -2,6 +2,7 @@ package com.example.hashresearch;
 
 import android.content.ContentValues;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.database.Cursor;
@@ -10,15 +11,18 @@ import android.database.sqlite.SQLiteOpenHelper;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.webkit.MimeTypeMap;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ProgressBar;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
@@ -39,43 +43,39 @@ import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
 import java.security.SecureRandom;
 import java.security.Security;
-import java.util.ArrayList;
+import java.security.spec.InvalidKeySpecException;
 import java.util.Arrays;
-import java.util.Enumeration;
 
-import javax.crypto.KeyGenerator;
+import javax.crypto.Cipher;
+import javax.crypto.CipherOutputStream;
 import javax.crypto.Mac;
 import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
-import javax.crypto.spec.SecretKeySpec;
 
 public class MainActivity extends AppCompatActivity implements View.OnClickListener {
     private static final String APP_PREFERENCES = "settings";
-    SharedPreferences mSettings;
+    private SharedPreferences mSettings;
 
     private static final String GOST3411 = "GOST3411";
     private static final String GOST3411_2012_256 = "GOST3411-2012-256";
     private static final String GOST3411_2012_512 = "GOST3411-2012-512";
+
     private static final String GOST28147 = "GOST28147";
-    private static final String HMAC_GOST3411 = "HMAC-GOST3411";
-    private static final String HMAC_GOST3411_2012_256 = "HMAC-GOST3411-2012-256";
-    private static final String HMAC_GOST3411_2012_512 = "HMAC-GOST3411-2012-512";
 
-    private String ALGORITHM;
+    private String ALGORITHM_DIGEST, ALGORITHM_CIPHER;
 
-    private Button openFileButton;
     private Button calculateHashSumButton;
     private Button checkIntegrityButton;
+    private Button encryptButton;
+    private Button decryptButton;
 
     private TextView fileNameTextView;
 
     private static final int RESULT_OPEN_FILE = 1;
-    private static final int RESULT_DIRECTORY_TO_SAVE_HASH = 2;
-    private static final int RESULT_DIRECTORY_TO_EXPORT_DB = 3;
-    private static final int RESULT_OPEN_HASH = 4;
+    private static final int RESULT_DIRECTORY_TO_EXPORT_DB = 2;
+    private static final int RESULT_OPEN_HASH = 3;
 
-    private ArrayList<CurrentFile> currentFiles;
     private CurrentFile currentFile;
     private byte[] currentHash;
 
@@ -84,23 +84,29 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        Security.removeProvider("BC");
+        Security.insertProviderAt(new org.spongycastle.jce.provider.BouncyCastleProvider(), 1);
+        Security.insertProviderAt(new org.bouncycastle.jce.provider.BouncyCastleProvider(), 1);
+
+        for (Provider provider: Security.getProviders()) {
+            Log.d("providers_info", provider.getInfo());
+        }
 
         mSettings = getSharedPreferences(APP_PREFERENCES, Context.MODE_PRIVATE);
-        ALGORITHM = mSettings.getString("ALGORITHM", "GOST3411");
-
-        Security.insertProviderAt(new org.spongycastle.jce.provider.BouncyCastleProvider(), 1);
-
-
+        ALGORITHM_DIGEST = mSettings.getString("ALGORITHM_DIGEST", GOST3411);
+        ALGORITHM_CIPHER = mSettings.getString("ALGORITHM_CIPHER", GOST28147);
 
         FloatingActionButton floatingActionButton = findViewById(R.id.chooseFileButton);
-        openFileButton = findViewById(R.id.openFileButton);
         calculateHashSumButton = findViewById(R.id.calculateHashSumButton);
         checkIntegrityButton = findViewById(R.id.checkIntegrityButton);
+        encryptButton = findViewById(R.id.encryptButton);
+        decryptButton = findViewById(R.id.decryptButton);
 
         floatingActionButton.setOnClickListener(this);
-        openFileButton.setOnClickListener(this);
         calculateHashSumButton.setOnClickListener(this);
         checkIntegrityButton.setOnClickListener(this);
+        encryptButton.setOnClickListener(this);
+        decryptButton.setOnClickListener(this);
 
         fileNameTextView = findViewById(R.id.textFileName);
     }
@@ -108,9 +114,11 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     @Override
     protected void onResume() {
         super.onResume();
-        mSettings = getSharedPreferences(APP_PREFERENCES, Context.MODE_PRIVATE);
-        ALGORITHM = mSettings.getString("ALGORITHM", "GOST3411");
+        ALGORITHM_DIGEST = mSettings.getString("ALGORITHM_DIGEST", GOST3411);
+        ALGORITHM_CIPHER = mSettings.getString("ALGORITHM_CIPHER", GOST28147);
     }
+
+
 
     // Добавить меню
     @Override
@@ -142,26 +150,19 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         return true;
     }
 
+
+
     // Обработка нажатий на кнопки
     @Override
     public void onClick(View v) {
         int id = v.getId();
         // Выбор файла
         if (id == R.id.chooseFileButton) {
-            Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
-            intent.setType("*/*");
-//            intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+            Intent intent = new Intent(MainActivity.this, Browser.class);
             startActivityForResult(intent, RESULT_OPEN_FILE);
-        // Открытие файла
-        } else if (id == R.id.openFileButton) {
-            Intent intent = new Intent(Intent.ACTION_VIEW);
-            intent.setData(currentFile.getUri());
-            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            startActivity(intent);
         // Рассчет имитовставки
         } else if (id == R.id.calculateHashSumButton) {
-            if (ALGORITHM.equals(GOST3411) || ALGORITHM.equals(GOST3411_2012_256) || ALGORITHM.equals(GOST3411_2012_512)) {
+            if (ALGORITHM_DIGEST.equals(GOST3411) || ALGORITHM_DIGEST.equals(GOST3411_2012_256) || ALGORITHM_DIGEST.equals(GOST3411_2012_512)) {
                 new CalculateHashTask().execute();
             } else {
                 AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
@@ -177,7 +178,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 builder.setNegativeButton("Отмена", (dialog, which) -> {});
                 enterPasswordDialog = builder.create();
                 enterPasswordDialog.show();
-
             }
         // Проверка целостности
         } else if (id == R.id.checkIntegrityButton) {
@@ -192,16 +192,61 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             builder.setPositiveButton("OK", (dialog, which) -> {
                 currentHash = hex2bytes(editTextHash.getText().toString());
                 // Рассчет хеша для сравнения с выбранным
-                new CheckHashTask().execute();
+                if (ALGORITHM_DIGEST.equals(GOST3411) || ALGORITHM_DIGEST.equals(GOST3411_2012_256) || ALGORITHM_DIGEST.equals(GOST3411_2012_512)) {
+                    new CheckHashTask().execute();
+                } else {
+                    AlertDialog enterPasswordDialog;
+                    View view1 = inflater.inflate(R.layout.layout_enter_password, null);
+                    final EditText editTextPassword = view1.findViewById(R.id.editTextPassword);
+                    builder.setTitle("Введите пароль");
+                    builder.setView(view1);
+                    builder.setPositiveButton("OK", (dialog1, which1) -> {
+                        if (!editTextPassword.getText().toString().equals("")) {
+                            if (!editTextPassword.getText().toString().equals("")) new CheckMACTask().execute(editTextPassword.getText().toString());
+                        }
+                    });
+                    builder.setNegativeButton("Отмена", (dialog1, which1) -> {});
+                    enterPasswordDialog = builder.create();
+                    enterPasswordDialog.show();
+                }
             });
             builder.setNeutralButton("Из файла", (dialog, which) -> {
-                Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
-                intent.setType("*/*");
+                Intent intent = new Intent(MainActivity.this, Browser.class);
                 startActivityForResult(intent, RESULT_OPEN_HASH);
             });
             builder.setNegativeButton("Отмена", (dialog, which) -> {});
             chooseHashDialog = builder.create();
             chooseHashDialog.show();
+
+        // Зашифровать файл
+        } else if (id == R.id.encryptButton) {
+            AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+            AlertDialog enterPasswordDialog;
+            LayoutInflater inflater = getLayoutInflater();
+            View view = inflater.inflate(R.layout.layout_enter_password, null);
+            final EditText editTextPassword = view.findViewById(R.id.editTextPassword);
+            builder.setTitle("Введите пароль");
+            builder.setView(view);
+            builder.setPositiveButton("OK", (dialog, which) -> {
+                if (!editTextPassword.getText().toString().equals("")) new EncryptTask().execute(editTextPassword.getText().toString());
+            });
+            builder.setNegativeButton("Отмена", (dialog, which) -> {});
+            enterPasswordDialog = builder.create();
+            enterPasswordDialog.show();
+        } else if (id == R.id.decryptButton) {
+            AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+            AlertDialog enterPasswordDialog;
+            LayoutInflater inflater = getLayoutInflater();
+            View view = inflater.inflate(R.layout.layout_enter_password, null);
+            final EditText editTextPassword = view.findViewById(R.id.editTextPassword);
+            builder.setTitle("Введите пароль");
+            builder.setView(view);
+            builder.setPositiveButton("OK", (dialog, which) -> {
+                if (!editTextPassword.getText().toString().equals("")) new DecryptTask().execute(editTextPassword.getText().toString());
+            });
+            builder.setNegativeButton("Отмена", (dialog, which) -> {});
+            enterPasswordDialog = builder.create();
+            enterPasswordDialog.show();
         }
     }
 
@@ -212,40 +257,13 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             switch (requestCode) {
                 // Открытия файла
                 case RESULT_OPEN_FILE:
-//                    currentFiles = new ArrayList<>();
-//                    if (data.getData() == null){
-//                        ClipData clipData = data.getClipData();
-//                        for (int i = 0; i < clipData.getItemCount(); i++){
-//                            ClipData.Item item = clipData.getItemAt(i);
-//                            currentFiles.add(new CurrentFile(item.getUri(), getApplicationContext()));
-//                            fileNameTextView.setText(String.format(Locale.getDefault(), "Выбранно файлов: %d", currentFiles.size()));
-//                        }
-//                    } else {
-//                        currentFiles.add(new CurrentFile(data.getData(), getApplicationContext()));
-//                        fileNameTextView.setText(String.format("%s (%s)", currentFiles.get(0).getFileName(), currentFiles.get(0).getFileSizeFormatted() ));
-//                    }
+                    currentFile = new CurrentFile(data.getStringExtra("file_path"));
+                    fileNameTextView.setText(String.format("%s (%s)", currentFile.getName(), currentFile.getFileSizeFormatted()));
 
-                    currentFile = new CurrentFile(data.getData(), getApplicationContext());
-                    fileNameTextView.setText(String.format("%s (%s)", currentFile.getFileName(), currentFile.getFileSizeFormatted() ));
-//            fileImageView.setImageBitmap(currentFile.getImageBitmap());
-
-                    openFileButton.setEnabled(true);
                     calculateHashSumButton.setEnabled(true);
                     checkIntegrityButton.setEnabled(true);
-                    break;
-
-                // Сохранение хеша в файл
-                case RESULT_DIRECTORY_TO_SAVE_HASH:
-                    // Получение пути для сохранения хеша
-                    DocumentFile documentHash = DocumentFile.fromTreeUri(this, data.getData()).createFile("*/*", currentFile.getFileName() + ".hash");
-                    // Сохранниея файла с хешем по выбранному пути
-                    try {
-                        OutputStream outputStream = getContentResolver().openOutputStream(documentHash.getUri());
-                        outputStream.write(currentHash);
-                        outputStream.close();
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
+                    encryptButton.setEnabled(true);
+                    decryptButton.setEnabled(true);
                     break;
 
                 // Экспорт базы данных
@@ -272,14 +290,31 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                     // Загрузка хеша из файла
                     try {
                         ByteArrayOutputStream bufferHash = new ByteArrayOutputStream();
-                        InputStream inputStream = getContentResolver().openInputStream(data.getData());
+                        InputStream inputStream = new FileInputStream(new CurrentFile(data.getStringExtra("file_path")));
                         byte[] buffer = new byte[32];
-                        while ((inputStream.read(buffer)) != -1) {
-                            bufferHash.write(buffer);
+                        int read;
+                        while ((read = inputStream.read(buffer)) != -1) {
+                            bufferHash.write(buffer, 0, read);
                         }
                         currentHash = bufferHash.toByteArray();
                         // Рассчет хеша для сравнения с выбранным
-                        new CheckHashTask().execute();
+                        if (ALGORITHM_DIGEST.equals(GOST3411) || ALGORITHM_DIGEST.equals(GOST3411_2012_256) || ALGORITHM_DIGEST.equals(GOST3411_2012_512)) {
+                            new CheckHashTask().execute();
+                        } else {
+                            AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+                            AlertDialog enterPasswordDialog;
+                            LayoutInflater inflater = getLayoutInflater();
+                            View view = inflater.inflate(R.layout.layout_enter_password, null);
+                            final EditText editTextPassword = view.findViewById(R.id.editTextPassword);
+                            builder.setTitle("Введите пароль");
+                            builder.setView(view);
+                            builder.setPositiveButton("OK", (dialog, which) -> {
+                                if (!editTextPassword.getText().toString().equals("")) new CheckMACTask().execute(editTextPassword.getText().toString());
+                            });
+                            builder.setNegativeButton("Отмена", (dialog, which) -> {});
+                            enterPasswordDialog = builder.create();
+                            enterPasswordDialog.show();
+                        }
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
@@ -289,6 +324,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         }
 
     }
+
+
 
     // Перевод хеша из массива байт в HEX
     public static String bytes2hex(final byte[] bytes) {
@@ -320,6 +357,15 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         return data;
     }
 
+    // Генератор ключа на основе пароля
+    public SecretKey generateKey(String password, int len) throws NoSuchAlgorithmException, InvalidKeySpecException {
+        byte[] salt = hex2bytes(mSettings.getString("SALT", ""));
+        PBEKeySpec pbeKeySpec = new PBEKeySpec(password.toCharArray(), salt, 100, len);
+        SecretKeyFactory secretKeyFactory = SecretKeyFactory.getInstance("PBKDF2WithHmacGOST3411");
+        return secretKeyFactory.generateSecret(pbeKeySpec);
+    }
+
+
 
     // Рассчет MDC в отдельном потоке
     class CalculateHashTask extends AsyncTask<Void, Integer, byte[]> {
@@ -328,7 +374,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         LayoutInflater inflater = getLayoutInflater();
         View view = inflater.inflate(R.layout.layout_loading_dialog, null);
         ProgressBar progressBar = view.findViewById(R.id.progressBarLoading);
-        long time;
 
         @Override
         protected void onPreExecute() {
@@ -338,8 +383,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             builder.setNegativeButton("Отмена", (dialog, which) -> cancel(true));
             loadDialog = builder.create();
             loadDialog.show();
-
-            time = System.currentTimeMillis();
         }
 
         @Override
@@ -350,21 +393,28 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         @Override
         protected byte[] doInBackground(Void... voids) {
             try {
-                MessageDigest messageDigest = MessageDigest.getInstance(ALGORITHM, Security.getProvider("SC"));
-                InputStream inputStream = getContentResolver().openInputStream(currentFile.getUri());
-                int bufferSize = (ALGORITHM.equals("GOST3411")) ? 32 : 64;
+                MessageDigest messageDigest = MessageDigest.getInstance(ALGORITHM_DIGEST, Security.getProvider("SC"));
+                InputStream inputStream = new FileInputStream(currentFile);
+
+                int bufferSize = 1024;
                 byte[] buffer = new byte[bufferSize];
                 long counter = 0;
-                long max = currentFile.getFileSize();
+                long max = currentFile.length();
+                int read;
 
-                while ((inputStream.read(buffer)) != -1) {
+                long time = System.currentTimeMillis();
+                while ((read = inputStream.read(buffer)) != -1) {
                     if (isCancelled()) return null;
 
                     messageDigest.update(buffer);
-                    counter += bufferSize;
+                    counter += read;
                     float percent = ((counter * 100) / (float) max);
                     publishProgress((int) percent);
                 }
+
+                time = System.currentTimeMillis() - time;
+                new DBHelper(getApplicationContext()).addDataToBD(currentFile, "MDC", ALGORITHM_DIGEST, (int) time);
+
                 return messageDigest.digest();
             } catch (Exception e) {
                 e.printStackTrace();
@@ -380,24 +430,29 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
         @Override
         protected void onPostExecute(byte[] hash) {
-            time = System.currentTimeMillis() - time;
-
-            new DBHelper(getApplicationContext()).addDataToBD(currentFile, ALGORITHM, (int) time);
-
             loadDialog.dismiss();
             builder = new AlertDialog.Builder(MainActivity.this);
             builder.setTitle("Имитовставка успешно посчитана");
             builder.setMessage(bytes2hex(hash));
             builder.setPositiveButton("Сохранить", (dialog, which) -> {
-                currentHash = hash;
-                Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
-                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
-                startActivityForResult(intent, RESULT_DIRECTORY_TO_SAVE_HASH);
+//                currentHash = hash;
+                try {
+                    OutputStream outputStream = new FileOutputStream(currentFile.getAbsolutePath() + ".hash");
+                    outputStream.write(hash);
+                    outputStream.close();
+                    Toast.makeText(getApplicationContext(), "Успешно сохранено", Toast.LENGTH_SHORT).show();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+//                Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+//                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+//                intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+//                startActivityForResult(intent, RESULT_DIRECTORY_TO_SAVE_HASH);
             });
             builder.setNeutralButton("Поделиться", (dialog, which) -> {
                 try {
-                    File tmpFile = new File(getCacheDir(), currentFile.getFileName() + ".hash");
+//                    File tmpFile = new File(getCacheDir(), currentFile.getFileName() + ".hash");
+                    File tmpFile = new File(getCacheDir(), currentFile.getName() + ".hash");
                     FileOutputStream fileOutputStream = new FileOutputStream(tmpFile);
                     fileOutputStream.write(hash);
                     fileOutputStream.close();
@@ -445,18 +500,19 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         @Override
         protected byte[] doInBackground(Void... voids) {
             try {
-                MessageDigest messageDigest = MessageDigest.getInstance(ALGORITHM, Security.getProvider("SC"));
-                InputStream inputStream = getContentResolver().openInputStream(currentFile.getUri());
-                int bufferSize = (ALGORITHM.equals(GOST3411)) ? 32 : 64;
-                byte[] buffer = new byte[bufferSize];
-                long counter = 0;
-                long max = currentFile.getFileSize();
+                MessageDigest messageDigest = MessageDigest.getInstance(ALGORITHM_DIGEST, Security.getProvider("SC"));
+                InputStream inputStream = new FileInputStream(currentFile);
 
-                while ((inputStream.read(buffer)) != -1) {
+                byte[] buffer = new byte[1024];
+                long counter = 0;
+                long max = currentFile.length();
+                int read;
+
+                while ((read = inputStream.read(buffer)) != -1) {
                     if (isCancelled()) return null;
 
                     messageDigest.update(buffer);
-                    counter += bufferSize;
+                    counter += read;
                     float percent = ((counter * 100) / (float) max);
                     publishProgress((int) percent);
                 }
@@ -496,7 +552,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         LayoutInflater inflater = getLayoutInflater();
         View view = inflater.inflate(R.layout.layout_loading_dialog, null);
         ProgressBar progressBar = view.findViewById(R.id.progressBarLoading);
-        long time;
 
         @Override
         protected void onPreExecute() {
@@ -506,8 +561,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             builder.setNegativeButton("Отмена", (dialog, which) -> cancel(true));
             loadDialog = builder.create();
             loadDialog.show();
-
-            time = System.currentTimeMillis();
         }
 
         @Override
@@ -519,37 +572,30 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         protected byte[] doInBackground(String... strings) {
             String password = strings[0];
             try {
-                char[] passwordChar = password.toCharArray();
-                byte[] salt = hex2bytes(mSettings.getString("SALT", ""));
-                PBEKeySpec pbeKeySpec = new PBEKeySpec(passwordChar, salt, 100, 512);
-                SecretKeyFactory secretKeyFactory = SecretKeyFactory.getInstance("PBKDF2WithHmacGOST3411");
-                SecretKey key = secretKeyFactory.generateSecret(pbeKeySpec);
-
-                Mac mac = Mac.getInstance(ALGORITHM, Security.getProvider("SC"));
+                Mac mac = Mac.getInstance(ALGORITHM_DIGEST, Security.getProvider("SC"));
+                SecretKey key = generateKey(password, 256);
                 mac.init(key);
 
-                InputStream inputStream = getContentResolver().openInputStream(currentFile.getUri());
-                int bufferSize;
-                if (ALGORITHM.equals(GOST28147)) {
-                    bufferSize = 8;
-                } else if (ALGORITHM.equals(HMAC_GOST3411)) {
-                    bufferSize = 32;
-                } else {
-                    bufferSize = 64;
-                }
-                byte[] buffer = new byte[bufferSize];
+                InputStream inputStream = new FileInputStream(currentFile);
 
+                byte[] buffer = new byte[1024];
                 long counter = 0;
-                long max = currentFile.getFileSize();
+                long max = currentFile.length();
+                int read;
 
-                while ((inputStream.read(buffer)) != -1) {
+                long time = System.currentTimeMillis();
+                while ((read = inputStream.read(buffer)) != -1) {
                     if (isCancelled()) return null;
 
                     mac.update(buffer);
-                    counter += bufferSize;
+                    counter += read;
                     float percent = ((counter * 100) / (float) max);
                     publishProgress((int) percent);
                 }
+
+                time = System.currentTimeMillis() - time;
+                new DBHelper(getApplicationContext()).addDataToBD(currentFile, "MAC", ALGORITHM_DIGEST, (int) time);
+
                 return mac.doFinal();
 
             } catch (Exception e) {
@@ -566,24 +612,24 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
         @Override
         protected void onPostExecute(byte[] mac) {
-            time = System.currentTimeMillis() - time;
-
-            new DBHelper(getApplicationContext()).addDataToBD(currentFile, ALGORITHM, (int) time);
-
             loadDialog.dismiss();
             builder = new AlertDialog.Builder(MainActivity.this);
             builder.setTitle("Имитовставка успешно посчитана");
             builder.setMessage(bytes2hex(mac));
             builder.setPositiveButton("Сохранить", (dialog, which) -> {
-                currentHash = mac;
-                Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
-                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
-                startActivityForResult(intent, RESULT_DIRECTORY_TO_SAVE_HASH);
+                try {
+                    OutputStream outputStream = new FileOutputStream(currentFile.getAbsolutePath() + ".mac");
+                    outputStream.write(mac);
+                    outputStream.close();
+                    Toast.makeText(getApplicationContext(), "Успешно сохранено", Toast.LENGTH_SHORT).show();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
             });
             builder.setNeutralButton("Поделиться", (dialog, which) -> {
                 try {
-                    File tmpFile = new File(getCacheDir(), currentFile.getFileName() + ".hash");
+//                    File tmpFile = new File(getCacheDir(), currentFile.getFileName() + ".hash");
+                    File tmpFile = new File(getCacheDir(), currentFile.getName() + ".hash");
                     FileOutputStream fileOutputStream = new FileOutputStream(tmpFile);
                     fileOutputStream.write(mac);
                     fileOutputStream.close();
@@ -605,8 +651,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     }
 
     // Проверка MAC в отдельном потоке (не реализован)
-    class CheckMACTask extends AsyncTask<Void, Integer, byte[]> {
-
+    class CheckMACTask extends AsyncTask<String, Integer, byte[]> {
         AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
         AlertDialog loadDialog;
         LayoutInflater inflater = getLayoutInflater();
@@ -629,24 +674,34 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         }
 
         @Override
-        protected byte[] doInBackground(Void... voids) {
+        protected byte[] doInBackground(String... strings) {
+            String password = strings[0];
             try {
-                MessageDigest messageDigest = MessageDigest.getInstance(ALGORITHM, Security.getProvider("SC"));
-                InputStream inputStream = getContentResolver().openInputStream(currentFile.getUri());
-                int bufferSize = (ALGORITHM.equals("GOST3411")) ? 32 : 64;
-                byte[] buffer = new byte[bufferSize];
-                long counter = 0;
-                long max = currentFile.getFileSize();
+                Mac mac = Mac.getInstance(ALGORITHM_DIGEST, Security.getProvider("SC"));
+                SecretKey key = generateKey(password, 256);
+                mac.init(key);
 
-                while ((inputStream.read(buffer)) != -1) {
+                InputStream inputStream = new FileInputStream(currentFile);
+
+                byte[] buffer = new byte[1024];
+                long counter = 0;
+                long max = currentFile.length();
+                int read;
+
+                long time = System.currentTimeMillis();
+                while ((read = inputStream.read(buffer)) != -1) {
                     if (isCancelled()) return null;
 
-                    messageDigest.update(buffer);
-                    counter += bufferSize;
+                    mac.update(buffer);
+                    counter += read;
                     float percent = ((counter * 100) / (float) max);
                     publishProgress((int) percent);
                 }
-                return messageDigest.digest();
+
+                time = System.currentTimeMillis() - time;
+                new DBHelper(getApplicationContext()).addDataToBD(currentFile, "MAC", ALGORITHM_DIGEST, (int) time);
+
+                return mac.doFinal();
             } catch (Exception e) {
                 e.printStackTrace();
                 return null;
@@ -660,11 +715,11 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         }
 
         @Override
-        protected void onPostExecute(byte[] hash) {
+        protected void onPostExecute(byte[] mac) {
             loadDialog.dismiss();
             builder = new AlertDialog.Builder(MainActivity.this);
             builder.setTitle("Результат проверки");
-            if (Arrays.equals(currentHash, hash)) {
+            if (Arrays.equals(currentHash, mac)) {
                 builder.setMessage("Целостность не нарушена");
             } else {
                 builder.setMessage("Целостность нарушена");
@@ -674,6 +729,175 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         }
 
     }
+
+    // Шифрование
+    class EncryptTask extends AsyncTask<String, Integer, Void> {
+        AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+        AlertDialog loadDialog;
+        LayoutInflater inflater = getLayoutInflater();
+        View view = inflater.inflate(R.layout.layout_loading_dialog, null);
+        ProgressBar progressBar = view.findViewById(R.id.progressBarLoading);
+
+        @Override
+        protected void onPreExecute() {
+            builder.setTitle("Вычисление...");
+            builder.setView(view);
+            builder.setCancelable(false);
+            builder.setNegativeButton("Отмена", (dialog, which) -> cancel(true));
+            loadDialog = builder.create();
+            loadDialog.show();
+        }
+
+        @Override
+        protected void onProgressUpdate(Integer... values) {
+            progressBar.setProgress(values[0]);
+        }
+
+        @Override
+        protected Void doInBackground(String... strings) {
+            String password = strings[0];
+            try {
+                FileOutputStream fileOutputStream = new FileOutputStream(currentFile.getAbsolutePath() + ".encrypted");
+
+                SecretKey key = generateKey(password, 256);
+
+                Cipher cipher = Cipher.getInstance(ALGORITHM_CIPHER, Security.getProvider("BC"));
+                cipher.init(Cipher.ENCRYPT_MODE, key);
+
+                InputStream inputStream = new FileInputStream(currentFile);
+                CipherOutputStream cipherOutputStream = new CipherOutputStream(fileOutputStream, cipher);
+
+                long counter = 0;
+                long max = currentFile.length();
+
+                int read;
+                byte[] buffer = new byte[1024];
+
+                long time = System.currentTimeMillis();
+                while ((read = inputStream.read(buffer)) != -1) {
+                    if (isCancelled()) return null;
+
+                    cipherOutputStream.write(buffer, 0, read);
+
+                    counter += read;
+                    float percent = ((counter * 100) / (float) max);
+                    publishProgress((int) percent);
+                }
+                time = System.currentTimeMillis() - time;
+                new DBHelper(getApplicationContext()).addDataToBD(currentFile, "Cipher", ALGORITHM_CIPHER, (int) time);
+
+                cipherOutputStream.flush();
+                cipherOutputStream.close();
+                inputStream.close();
+
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
+            return null;
+        }
+
+        @Override
+        protected void onCancelled() {
+            super.onCancelled();
+            loadDialog.dismiss();
+        }
+
+        @Override
+        protected void onPostExecute(Void result) {
+            loadDialog.dismiss();
+            builder = new AlertDialog.Builder(MainActivity.this);
+            builder.setTitle("Файл успешно зашифрован");
+            builder.setPositiveButton("Ok", (dialog, which) -> {});
+            builder.show();
+        }
+    }
+
+    // Расшифрование
+    class DecryptTask extends AsyncTask<String, Integer, Void> {
+        AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+        AlertDialog loadDialog;
+        LayoutInflater inflater = getLayoutInflater();
+        View view = inflater.inflate(R.layout.layout_loading_dialog, null);
+        ProgressBar progressBar = view.findViewById(R.id.progressBarLoading);
+
+        @Override
+        protected void onPreExecute() {
+            builder.setTitle("Вычисление...");
+            builder.setView(view);
+            builder.setCancelable(false);
+            builder.setNegativeButton("Отмена", (dialog, which) -> cancel(true));
+            loadDialog = builder.create();
+            loadDialog.show();
+        }
+
+        @Override
+        protected void onProgressUpdate(Integer... values) {
+            progressBar.setProgress(values[0]);
+        }
+
+        @Override
+        protected Void doInBackground(String... strings) {
+            String password = strings[0];
+
+            try {
+                FileOutputStream fileOutputStream = new FileOutputStream(currentFile.getAbsolutePath() + ".decrypted");
+
+                SecretKey key = generateKey(password, 256);
+
+                Cipher cipher = Cipher.getInstance(ALGORITHM_CIPHER, Security.getProvider("BC"));
+                cipher.init(Cipher.DECRYPT_MODE, key);
+
+                InputStream inputStream = new FileInputStream(currentFile);
+                CipherOutputStream cipherOutputStream = new CipherOutputStream(fileOutputStream, cipher);
+
+                long counter = 0;
+                long max = currentFile.length();
+
+                int read;
+                byte[] buffer = new byte[1024];
+
+                long time = System.currentTimeMillis();
+                while ((read = inputStream.read(buffer)) != -1) {
+                    if (isCancelled()) return null;
+
+                    cipherOutputStream.write(buffer, 0, read);
+
+                    counter += read;
+                    float percent = ((counter * 100) / (float) max);
+                    publishProgress((int) percent);
+                }
+                time = System.currentTimeMillis() - time;
+                new DBHelper(getApplicationContext()).addDataToBD(currentFile, "Cipher", ALGORITHM_CIPHER, (int) time);
+
+                cipherOutputStream.flush();
+                cipherOutputStream.close();
+                inputStream.close();
+
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
+            return null;
+        }
+
+        @Override
+        protected void onCancelled() {
+            super.onCancelled();
+            loadDialog.dismiss();
+        }
+
+        @Override
+        protected void onPostExecute(Void result) {
+            loadDialog.dismiss();
+            builder = new AlertDialog.Builder(MainActivity.this);
+            builder.setTitle("Файл успешно зашифрован");
+            builder.setPositiveButton("Ok", (dialog, which) -> {});
+            builder.show();
+        }
+    }
+
+
 
     // Работа с БД
     static class DBHelper extends SQLiteOpenHelper {
@@ -689,6 +913,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                     + "file_name text,"
                     + "file_type text,"
                     + "size_mb float,"
+                    + "mode text,"
                     + "algorithm text,"
                     + "time_sec float"
                     + ");");
@@ -699,13 +924,13 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
         }
 
-        public void addDataToBD(CurrentFile file, String algorithm, int time) {
+        public void addDataToBD(CurrentFile file, String mode, String algorithm, int time) {
             SQLiteDatabase db = this.getWritableDatabase();
             ContentValues cv = new ContentValues();
             Cursor cursor = db.query("time",
                     null,
-                    "file_name = ? AND file_type = ? AND size_mb = ? AND algorithm = ?",
-                    new String[] {file.getFileName(), file.getFileType(), Double.toString((double) file.getFileSize() / 1000000), algorithm},
+                    "file_name = ? AND file_type = ? AND size_mb = ? AND mode = ? AND algorithm = ?",
+                    new String[] {file.getName(), file.getFileType(), Double.toString((double) file.length() / 1000000), mode, algorithm},
                     null,
                     null,
                     null,
@@ -717,9 +942,10 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 db.update("time", cv, where, null);
                 cursor.close();
             } else {
-                cv.put("file_name", file.getFileName());
+                cv.put("file_name", file.getName());
                 cv.put("file_type", file.getFileType());
-                cv.put("size_mb", file.getFileSize() / 1000000.0);
+                cv.put("size_mb", file.length() / 1000000.0);
+                cv.put("mode", mode);
                 cv.put("algorithm", algorithm);
                 cv.put("time_sec", time / 1000.0);
                 db.insert("time", null, cv);

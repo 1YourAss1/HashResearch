@@ -4,6 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:orientation="vertical"
     tools:context=".SettingsActivity">
 
     <RadioGroup
@@ -13,7 +14,8 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/mdc"/>
+            android:layout_marginStart="10dp"
+            android:text="@string/mdc" />
 
         <RadioButton
             android:id="@+id/radioButtonGost3411"
@@ -36,7 +38,8 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/mac"/>
+            android:layout_marginStart="10dp"
+            android:text="@string/mac" />
 
         <RadioButton
             android:id="@+id/radioButtonMacGost28147_89"
@@ -61,6 +64,30 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/gost3411_2012_512_hmac" />
+
+    </RadioGroup>
+
+    <RadioGroup
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:text="@string/encryption" />
+
+        <RadioButton
+            android:id="@+id/radioButtonGost28147_89"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/gost28147" />
+
+        <RadioButton
+            android:id="@+id/radioButtonGost3412_2015"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/gost3412_2015" />
 
     </RadioGroup>
 </LinearLayout>

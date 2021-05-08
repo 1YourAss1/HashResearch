@@ -17,4 +17,10 @@
     <string name="mdc">MDC</string>
     <string name="mac">MAC</string>
     <string name="generate_salt">Сгенерировать соль</string>
+    <string name="enсrypt">Зашифровать</string>
+    <string name="encryption">Шифрование</string>
+    <string name="gost3412_2015">ГОСТ Р 34.12-2015</string>
+    <string name="gost28147">ГОСТ 28147-89</string>
+    <string name="deсrypt">Расшифровать</string>
+    <string name="choose_file">Выбирите файл</string>
 </resources>
