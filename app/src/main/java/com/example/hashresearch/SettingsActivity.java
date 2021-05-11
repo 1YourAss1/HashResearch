@@ -16,10 +16,10 @@ public class SettingsActivity extends AppCompatActivity implements View.OnClickL
     private static final String GOST3411_2012_256 = "GOST3411-2012-256";
     private static final String GOST3411_2012_512 = "GOST3411-2012-512";
     private static final String GOST28147 = "GOST28147";
+    private static final String GOST3412_2015 = "GOST3412-2015";
     private static final String HMAC_GOST3411 = "HMAC-GOST3411";
     private static final String HMAC_GOST3411_2012_256 = "HMAC-GOST3411-2012-256";
     private static final String HMAC_GOST3411_2012_512 = "HMAC-GOST3411-2012-512";
-    private static final String GOST3412_2015 = "GOST3412-2015";
 
     // MDC
     RadioButton radioButtonGost3411;
@@ -28,6 +28,7 @@ public class SettingsActivity extends AppCompatActivity implements View.OnClickL
 
     // MAC
     RadioButton radioButtonMacGost28147_89;
+    RadioButton radioButtonMacGost3412_2015;
     RadioButton radioButtonMacGost3411;
     RadioButton radioButtonMacGost3411_2012_256;
     RadioButton radioButtonMacGost3411_2012_512;
@@ -48,6 +49,7 @@ public class SettingsActivity extends AppCompatActivity implements View.OnClickL
         radioButtonGost3411_2012_512 = findViewById(R.id.radioButtonGost3411_2012_512);
 
         radioButtonMacGost28147_89 = findViewById(R.id.radioButtonMacGost28147_89);
+        radioButtonMacGost3412_2015 = findViewById(R.id.radioButtonMacGost3412_2015);
         radioButtonMacGost3411 = findViewById(R.id.radioButtonMacGost3411);
         radioButtonMacGost3411_2012_256 = findViewById(R.id.radioButtonMacGost3411_2012_256);
         radioButtonMacGost3411_2012_512 = findViewById(R.id.radioButtonMacGost3411_2012_512);
@@ -65,13 +67,16 @@ public class SettingsActivity extends AppCompatActivity implements View.OnClickL
             case GOST28147:
                 radioButtonMacGost28147_89.setChecked(true);
                 break;
-            case "HMAC-GOST3411":
+            case GOST3412_2015:
+                radioButtonMacGost3412_2015.setChecked(true);
+                break;
+            case HMAC_GOST3411:
                 radioButtonMacGost3411.setChecked(true);
                 break;
-            case "HMAC-GOST3411-2012-256":
+            case HMAC_GOST3411_2012_256:
                 radioButtonMacGost3411_2012_256.setChecked(true);
                 break;
-            case "HMAC-GOST3411-2012-512":
+            case HMAC_GOST3411_2012_512:
                 radioButtonMacGost3411_2012_512.setChecked(true);
                 break;
         }
@@ -95,6 +100,7 @@ public class SettingsActivity extends AppCompatActivity implements View.OnClickL
         radioButtonGost3411_2012_512.setOnClickListener(this);
 
         radioButtonMacGost28147_89.setOnClickListener(this);
+        radioButtonMacGost3412_2015.setOnClickListener(this);
         radioButtonMacGost3411.setOnClickListener(this);
         radioButtonMacGost3411_2012_256.setOnClickListener(this);
         radioButtonMacGost3411_2012_512.setOnClickListener(this);
@@ -108,21 +114,26 @@ public class SettingsActivity extends AppCompatActivity implements View.OnClickL
         SharedPreferences.Editor editor = mSettings.edit();
         int id = v.getId();
 
+        // Hash
         if (id == R.id.radioButtonGost3411) {
             editor.putString("ALGORITHM_DIGEST", GOST3411);
         } else if (id == R.id.radioButtonGost3411_2012_256) {
             editor.putString("ALGORITHM_DIGEST", GOST3411_2012_256);
         } else if (id == R.id.radioButtonGost3411_2012_512) {
             editor.putString("ALGORITHM_DIGEST", GOST3411_2012_512);
+        // CMAC
         } else if (id == R.id.radioButtonMacGost28147_89) {
             editor.putString("ALGORITHM_DIGEST", GOST28147);
+        } else if (id == R.id.radioButtonMacGost3412_2015) {
+            editor.putString("ALGORITHM_DIGEST", GOST3412_2015);
+        // HMAC
         } else if (id == R.id.radioButtonMacGost3411) {
             editor.putString("ALGORITHM_DIGEST", HMAC_GOST3411);
         } else if (id == R.id.radioButtonMacGost3411_2012_256) {
             editor.putString("ALGORITHM_DIGEST", HMAC_GOST3411_2012_256);
         } else if (id == R.id.radioButtonMacGost3411_2012_512) {
             editor.putString("ALGORITHM_DIGEST", HMAC_GOST3411_2012_512);
-
+        // Cipher
         } else if (id == R.id.radioButtonGost28147_89) {
             editor.putString("ALGORITHM_CIPHER", GOST28147);
         } else if (id == R.id.radioButtonGost3412_2015) {

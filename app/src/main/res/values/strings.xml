@@ -23,4 +23,5 @@
     <string name="gost28147">ГОСТ 28147-89</string>
     <string name="deсrypt">Расшифровать</string>
     <string name="choose_file">Выбирите файл</string>
+    <string name="gost3412_2015_cmac">ГОСТ Р 34.12-2015 (CMAC)</string>
 </resources>

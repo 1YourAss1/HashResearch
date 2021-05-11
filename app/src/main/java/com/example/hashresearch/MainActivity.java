@@ -31,6 +31,15 @@ import androidx.documentfile.provider.DocumentFile;
 
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 
+import org.bouncycastle.crypto.digests.GOST3411Digest;
+import org.bouncycastle.crypto.digests.GOST3411_2012_256Digest;
+import org.bouncycastle.crypto.engines.GOST28147Engine;
+import org.bouncycastle.crypto.macs.CMac;
+import org.bouncycastle.crypto.macs.HMac;
+import org.bouncycastle.crypto.params.GOST3410KeyParameters;
+import org.bouncycastle.crypto.params.KeyParameter;
+import org.bouncycastle.jcajce.provider.symmetric.GOST3412_2015;
+
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -393,7 +402,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         @Override
         protected byte[] doInBackground(Void... voids) {
             try {
-                MessageDigest messageDigest = MessageDigest.getInstance(ALGORITHM_DIGEST, Security.getProvider("SC"));
+                MessageDigest messageDigest = MessageDigest.getInstance(ALGORITHM_DIGEST);
                 InputStream inputStream = new FileInputStream(currentFile);
 
                 int bufferSize = 1024;
@@ -413,6 +422,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 }
 
                 time = System.currentTimeMillis() - time;
+
                 new DBHelper(getApplicationContext()).addDataToBD(currentFile, "MDC", ALGORITHM_DIGEST, (int) time);
 
                 return messageDigest.digest();
@@ -500,7 +510,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         @Override
         protected byte[] doInBackground(Void... voids) {
             try {
-                MessageDigest messageDigest = MessageDigest.getInstance(ALGORITHM_DIGEST, Security.getProvider("SC"));
+                MessageDigest messageDigest = MessageDigest.getInstance(ALGORITHM_DIGEST);
                 InputStream inputStream = new FileInputStream(currentFile);
 
                 byte[] buffer = new byte[1024];
@@ -572,7 +582,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         protected byte[] doInBackground(String... strings) {
             String password = strings[0];
             try {
-                Mac mac = Mac.getInstance(ALGORITHM_DIGEST, Security.getProvider("SC"));
+                Mac mac = Mac.getInstance(ALGORITHM_DIGEST);
                 SecretKey key = generateKey(password, 256);
                 mac.init(key);
 
@@ -677,7 +687,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         protected byte[] doInBackground(String... strings) {
             String password = strings[0];
             try {
-                Mac mac = Mac.getInstance(ALGORITHM_DIGEST, Security.getProvider("SC"));
+                Mac mac = Mac.getInstance(ALGORITHM_DIGEST);
                 SecretKey key = generateKey(password, 256);
                 mac.init(key);
 
@@ -761,7 +771,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
                 SecretKey key = generateKey(password, 256);
 
-                Cipher cipher = Cipher.getInstance(ALGORITHM_CIPHER, Security.getProvider("BC"));
+                Cipher cipher = Cipher.getInstance(ALGORITHM_CIPHER);
                 cipher.init(Cipher.ENCRYPT_MODE, key);
 
                 InputStream inputStream = new FileInputStream(currentFile);
@@ -845,7 +855,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
                 SecretKey key = generateKey(password, 256);
 
-                Cipher cipher = Cipher.getInstance(ALGORITHM_CIPHER, Security.getProvider("BC"));
+                Cipher cipher = Cipher.getInstance(ALGORITHM_CIPHER);
                 cipher.init(Cipher.DECRYPT_MODE, key);
 
                 InputStream inputStream = new FileInputStream(currentFile);
